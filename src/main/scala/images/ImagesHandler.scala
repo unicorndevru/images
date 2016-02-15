@@ -7,8 +7,8 @@ import akka.http.scaladsl.model.headers.{ EntityTag, Accept }
 import akka.http.scaladsl.server.{ Directive, Directive1 }
 import akka.http.scaladsl.server.Directives._
 import akka.stream.scaladsl.FileIO
-import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 import images.protocol.{ ImagesError, ImagesJsonFormats, Image }
+import utils.http.PlayJsonSupport
 
 import scala.concurrent.ExecutionContext
 
@@ -31,7 +31,7 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
 
   val modifyKeys = Set("w", "h", "m")
 
-  val route = (handleExceptions(ImagesExceptionHandler.generic) & pathPrefix("images")) {
+  val route = pathPrefix("images") {
     pathEndOrSingleSlash {
       (post & userStringIdRequired) { userId ⇒
         uploadedFile("data") {
