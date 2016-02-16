@@ -7,6 +7,7 @@ trait ImagesJsonFormats {
     Json.obj(
       "id" → im.id,
       "userId" → im.userId,
+      "preload" → im.preload,
       "width" → im.width,
       "height" → im.height,
       "dateCreated" → im.dateCreated
