@@ -2,6 +2,7 @@ package images
 
 import java.io.File
 import java.nio.file.Files
+import java.util.Base64
 
 import akka.http.scaladsl.model.{ MediaType, MediaTypes }
 import akka.http.scaladsl.server.directives.FileInfo
@@ -10,19 +11,25 @@ import com.sksamuel.scrimage.filter.SharpenFilter
 import com.sksamuel.scrimage.nio.PngWriter
 import com.sksamuel.scrimage.{ Color, Image ⇒ ScrImage, ScaleMethod }
 import images.protocol.{ Image, ImagesError, ImagesFilter }
+import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) {
+  val PreloadSize = 32
+
   def getImage(imageId: Image.Id): Future[Image] =
     dataStorage.get(imageId).recoverWith {
       case _ ⇒ Future.failed(ImagesError.NotFound)
     }
 
   def save(userId: String, info: FileInfo, file: File): Future[(Boolean, Image)] = {
-    val (w, h) = ScrImage.fromFile(file).dimensions
+    val scri = ScrImage.fromFile(file)
+    val (w, h) = scri.dimensions
+    val scriStream = scri.fit(PreloadSize, PreloadSize, Color.White, ScaleMethod.Bicubic).autocrop(Color.White).stream(PngWriter.MaxCompression)
+    val preload = Base64.getEncoder.encodeToString(IOUtils.toByteArray(scriStream))
     blobsService.storeFile(info, file).flatMap { bid ⇒
       val imageId = bid.hash.substring(0, 6) + userId.substring(0, 6) + "/" + bid.filename.take(64)
       dataStorage.save(Image(
@@ -31,6 +38,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
         userId = userId,
         width = w,
         height = h,
+        preload = preload,
         mediaType = info.contentType.mediaType.toString(),
         dateCreated = DateTime.now()
       )).map(true → _).recoverWith {

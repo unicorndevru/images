@@ -10,6 +10,7 @@ case class Image(
   mediaType:   String,
   width:       Int,
   height:      Int,
+  preload:     String,
   dateCreated: DateTime
 )
 

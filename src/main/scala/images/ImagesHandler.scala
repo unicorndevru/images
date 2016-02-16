@@ -8,7 +8,7 @@ import akka.http.scaladsl.server.{ Directive, Directive1 }
 import akka.http.scaladsl.server.Directives._
 import akka.stream.scaladsl.FileIO
 import images.protocol.{ ImagesError, ImagesJsonFormats, Image }
-import utils.http.PlayJsonSupport
+import utils.http.json.PlayJsonSupport
 
 import scala.concurrent.ExecutionContext
 
@@ -31,7 +31,7 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
 
   val modifyKeys = Set("w", "h", "m")
 
-  val route = pathPrefix("images") {
+  val route = (pathPrefix("images") & extractJsonMarshallingContext) { implicit jsonCtx ⇒
     pathEndOrSingleSlash {
       (post & userStringIdRequired) { userId ⇒
         uploadedFile("data") {
@@ -53,6 +53,12 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
           conditional(EntityTag(md5Hex("json" + imageId))) {
             onSuccess(imagesService.getImage(imageId)) { image ⇒
               complete(image)
+            }
+          }
+        case Some(a) if a.mediaRanges.forall(_.matches(MediaTypes.`text/html`)) ⇒
+          conditional(EntityTag(md5Hex("html" + imageId))) {
+            onSuccess(imagesService.getImage(imageId)) { image ⇒
+              complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<img src=\"data:image/png;base64," + image.preload + "\">"))
             }
           }
         case _ ⇒
