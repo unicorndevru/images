@@ -9,9 +9,7 @@ name := "images"
 
 scalaVersion := "2.11.7"
 
-val akkaV = "2.4.1"
-
-val akkaHttpV = "2.0.3"
+val akkaV = "2.4.2"
 
 val gitHeadCommitSha = settingKey[String]("current git commit SHA")
 
@@ -48,12 +46,10 @@ lazy val `images` = (project in file(".")).settings(commons: _*).settings(
     "com.sksamuel.scrimage" %% "scrimage-io-extra" % "2.1.3",
     "com.sksamuel.scrimage" %% "scrimage-filters" % "2.1.3",
     "com.ibm.icu" % "icu4j" % "56.1",
-    "ru.unicorndev" %% "utils-http" % "0.2.29606d9",
+    "ru.unicorndev" %% "utils-http" % "0.2.4f8aff5",
     "com.typesafe.play" %% "play-json" % "2.4.6",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
-    "com.typesafe.akka" %% "akka-stream-experimental" % akkaHttpV,
-    "com.typesafe.akka" %% "akka-http-experimental" % akkaHttpV,
-    "com.typesafe.akka" %% "akka-http-testkit-experimental" % akkaHttpV % Test,
+    "com.typesafe.akka" %% "akka-http-testkit" % akkaV % Test,
     "org.scalatest" %% "scalatest" % "2.2.5" % Test,
     "junit" % "junit" % "4.12" % Test
   )
