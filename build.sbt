@@ -11,6 +11,8 @@ scalaVersion := "2.11.7"
 
 val akkaV = "2.4.2"
 
+val scrimageV = "2.1.4"
+
 val gitHeadCommitSha = settingKey[String]("current git commit SHA")
 
 val commonScalariform = scalariformSettings :+ (ScalariformKeys.preferences := ScalariformKeys.preferences.value
@@ -42,12 +44,11 @@ lazy val `images` = (project in file(".")).settings(commons: _*).settings(
   name := "images",
   organization := "ru.unicorndev",
   libraryDependencies ++= Seq(
-    "com.sksamuel.scrimage" %% "scrimage-core" % "2.1.3",
-    "com.sksamuel.scrimage" %% "scrimage-io-extra" % "2.1.3",
-    "com.sksamuel.scrimage" %% "scrimage-filters" % "2.1.3",
+    "com.sksamuel.scrimage" %% "scrimage-core" % scrimageV,
+    "com.sksamuel.scrimage" %% "scrimage-io-extra" % scrimageV,
+    "com.sksamuel.scrimage" %% "scrimage-filters" % scrimageV,
     "com.ibm.icu" % "icu4j" % "56.1",
     "ru.unicorndev" %% "utils-http" % "0.2.4f8aff5",
-    "com.typesafe.play" %% "play-json" % "2.4.6",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     "com.typesafe.akka" %% "akka-http-testkit" % akkaV % Test,
     "org.scalatest" %% "scalatest" % "2.2.5" % Test,
