@@ -24,7 +24,7 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
   }
 
   def getImageFile(image: Image): Directive[(MediaType.Binary, File)] =
-    (parameters('w.as[Int], 'h.as[Int], 'm.as[String].?).tmap {
+    (parameters('w.as[Int], 'h.as[Int], 'm ? "cover").tmap {
       case (w, h, m) ⇒
         imagesService.getModifiedImageFile(image, w, h, m)
     } | provide(imagesService.getImageFile(image))).flatMap(f ⇒ onSuccess(f))

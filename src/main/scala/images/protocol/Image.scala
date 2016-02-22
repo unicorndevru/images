@@ -11,6 +11,8 @@ case class Image(
   width:       Int,
   height:      Int,
   preload:     String,
+  rendered:    Set[ImageRendered],
+  size: Long,
   dateCreated: DateTime
 )
 

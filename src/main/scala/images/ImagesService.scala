@@ -6,11 +6,11 @@ import java.util.Base64
 
 import akka.http.scaladsl.model.{ MediaType, MediaTypes }
 import akka.http.scaladsl.server.directives.FileInfo
-import blobs.BlobsService
+import blobs.{ BlobId, BlobsService }
 import com.sksamuel.scrimage.filter.SharpenFilter
 import com.sksamuel.scrimage.nio.PngWriter
 import com.sksamuel.scrimage.{ Color, Image ⇒ ScrImage, ScaleMethod }
-import images.protocol.{ Image, ImagesError, ImagesFilter }
+import images.protocol.{ ImageRendered, Image, ImagesError, ImagesFilter }
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
 
@@ -39,6 +39,8 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
         width = w,
         height = h,
         preload = preload,
+        rendered = Set.empty,
+        size = file.length(),
         mediaType = info.contentType.mediaType.toString(),
         dateCreated = DateTime.now()
       )).map(true → _).recoverWith {
@@ -49,8 +51,11 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
   }
 
   def getImageFile(im: Image): Future[(MediaType.Binary, File)] =
-    blobsService.retrieveFile(im.blobId).map { f ⇒
-      (MediaTypes.forExtension(im.blobId.extension) match {
+    getFile(im.blobId)
+
+  private def getFile(blobId: BlobId): Future[(MediaType.Binary, File)] =
+    blobsService.retrieveFile(blobId).map { f ⇒
+      (MediaTypes.forExtension(blobId.extension) match {
         case mt: MediaType.Binary ⇒
           mt
         case _ ⇒
@@ -58,23 +63,34 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
       }) → f
     }
 
-  def getModifiedImageFile(im: Image, width: Int, heigth: Int, mode: Option[String]): Future[(MediaType.Binary, File)] =
-    getImageFile(im).map {
-      case (m, file) ⇒
-        if (im.width <= width && im.height <= heigth) {
-          (m, file)
-        } else {
-          val tmp = Files.createTempFile("mod-" + im.blobId.filename, "tmp")
-          val img = ScrImage.fromFile(file)
-          val imgSized = mode match {
-            case Some("fit") ⇒
-              img.fit(width, heigth, Color.White, ScaleMethod.Bicubic).autocrop(Color.White)
-            case _ ⇒
-              img.cover(width, heigth, ScaleMethod.Bicubic)
-          }
-          MediaTypes.`image/png` → imgSized
-            .filter(SharpenFilter)
-            .output(tmp)(PngWriter.MinCompression).toFile
+  def getModifiedImageFile(im: Image, width: Int, height: Int, mode: String): Future[(MediaType.Binary, File)] =
+    im.rendered.find(r ⇒ r.width == width && r.height == height && r.mode == mode) match {
+      case Some(r) ⇒
+        getFile(r.blobId)
+      case None ⇒
+        getImageFile(im).flatMap {
+          case (m, file) ⇒
+            if (im.width <= width && im.height <= height) {
+              Future.successful(m, file)
+            } else {
+              val tmp = Files.createTempFile("mod-" + im.blobId.filename, "tmp")
+              val img = ScrImage.fromFile(file)
+              val imgSized = mode match {
+                case "fit" ⇒
+                  img.fit(width, height, Color.White, ScaleMethod.Bicubic).autocrop(Color.White)
+                case _ ⇒
+                  img.cover(width, height, ScaleMethod.Bicubic)
+              }
+              val f = imgSized
+                .filter(SharpenFilter)
+                .output(tmp)(PngWriter.MaxCompression).toFile
+
+              blobsService.storeFile(s"w${width}_h${height}_${mode}_" + im.blobId.filename, f).flatMap { bid ⇒
+                val r = ImageRendered(width = width, height = height, mode = mode, blobId = bid, size = f.length(), dateCreated = DateTime.now())
+                dataStorage.rendered(im.id, r).map(_ ⇒
+                  MediaTypes.`image/png` → f)
+              }
+            }
         }
     }
 
@@ -83,7 +99,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
       case (b, c) ⇒
         if (c > 0) {
           Future.successful(b)
-        } else blobsService.delete(im.blobId)
+        } else Future.traverse(im.rendered.map(_.blobId) + im.blobId)(blobsService.delete).map(_.forall(identity))
     }
   }
 }

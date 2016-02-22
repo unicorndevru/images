@@ -12,6 +12,8 @@ import scala.concurrent.Future
 trait BlobsService {
   def storeFile(info: FileInfo, file: File): Future[BlobId]
 
+  def storeFile(filename: String, file: File): Future[BlobId]
+
   def retrieveFile(id: BlobId): Future[File]
 
   def delete(id: BlobId): Future[Boolean]
@@ -53,6 +55,24 @@ class FilesService(val baseDir: String, val dispersion: Int = 16) extends BlobsS
 
     val id0 = BlobId(hash = md5file(file), filename = filename, extension = ext)
 
+    store(id0, filename, file)
+  }
+
+  override def storeFile(filename: String, file: File) = {
+    val lastDot = filename.lastIndexOf('.')
+    val ext = if (lastDot != -1) {
+      filename.substring(lastDot + 1)
+    } else DefaultExtension
+
+    val fn = Normalizer2.getNFKCInstance.normalize(filename.stripSuffix("." + ext))
+      .replaceAll("\\s+", "-").replaceAll("[^-_a-zA-Z0-9]", "").toLowerCase
+
+    val id0 = BlobId(hash = md5file(file), filename = fn, extension = ext)
+
+    store(id0, filename, file)
+  }
+
+  private def store(id0: BlobId, filename: String, file: File): Future[BlobId] = {
     val p0 = Paths.get(location(id0))
 
     if (Files.exists(p0) && md5file(p0.toFile) == id0.hash) {
