@@ -30,6 +30,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
     val (w, h) = scri.dimensions
     val scriStream = scri.fit(PreloadSize, PreloadSize, Color.White, ScaleMethod.Bicubic).autocrop(Color.White).stream(PngWriter.MaxCompression)
     val preload = Base64.getEncoder.encodeToString(IOUtils.toByteArray(scriStream))
+
     blobsService.storeFile(info, file).flatMap { bid ⇒
       val imageId = bid.hash.substring(0, 6) + userId.substring(0, 6) + "/" + bid.filename.take(64)
       dataStorage.save(Image(
