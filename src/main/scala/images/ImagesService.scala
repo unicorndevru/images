@@ -87,7 +87,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
                 .output(tmp)(PngWriter.MaxCompression).toFile
 
               blobsService.storeFile(s"w${width}_h${height}_${mode}_" + im.blobId.filename, f).flatMap { bid ⇒
-                val r = ImageRendered(width = width, height = height, mode = mode, blobId = bid, size = f.length(), dateCreated = DateTime.now())
+                val r = ImageRendered(width = width, height = height, mode = mode, blobId = bid, size = f.length(), at = DateTime.now())
                 dataStorage.rendered(im.id, r).map(_ ⇒
                   MediaTypes.`image/png` → f)
               }
