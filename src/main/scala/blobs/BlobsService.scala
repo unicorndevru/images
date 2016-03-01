@@ -6,6 +6,7 @@ import java.security.MessageDigest
 
 import akka.http.scaladsl.server.directives.FileInfo
 import com.ibm.icu.text.Normalizer2
+import images.protocol.ImagesError
 
 import scala.concurrent.Future
 
@@ -105,7 +106,7 @@ class FilesService(val baseDir: String, val dispersion: Int = 16) extends BlobsS
     if (Files.exists(path)) {
       Future.successful(path.toFile)
     } else {
-      Future.failed(new NoSuchElementException("File not found"))
+      Future.failed(ImagesError.FileNotFound)
     }
   }
 
