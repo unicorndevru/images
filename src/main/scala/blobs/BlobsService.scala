@@ -36,6 +36,7 @@ class FilesService(val baseDir: String, val dispersion: Int = 16) extends BlobsS
     val bis = new FileInputStream(file)
     val md5 = MessageDigest.getInstance("MD5")
     var buf = new Array[Byte](262144)
+
     Stream.continually(bis.read(buf)).takeWhile(_ != -1).foreach(md5.update(buf, 0, _))
     md5.digest().map(0xFF & _).map {
       "%02x".format(_)
