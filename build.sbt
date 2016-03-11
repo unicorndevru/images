@@ -11,7 +11,7 @@ scalaVersion := "2.11.7"
 
 val akkaV = "2.4.2"
 
-val scrimageV = "2.1.4"
+val scrimageV = "2.1.5"
 
 val gitHeadCommitSha = settingKey[String]("current git commit SHA")
 
