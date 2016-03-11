@@ -5,7 +5,7 @@ import java.nio.file.{ FileSystems, Files, Paths, StandardCopyOption }
 import java.security.MessageDigest
 
 import akka.http.scaladsl.server.directives.FileInfo
-import com.ibm.icu.text.Normalizer2
+import com.ibm.icu.text.{ Transliterator, Normalizer2 }
 import images.protocol.ImagesError
 
 import scala.concurrent.Future
@@ -44,6 +44,9 @@ class FilesService(val baseDir: String, val dispersion: Int = 16) extends BlobsS
     }
   }
 
+  private val normalize = (n: String) ⇒ Normalizer2.getNFDInstance.normalize(n).replaceAll("\\s+", "-").replaceAll("[^-_a-zA-Z0-9]", "").toLowerCase
+  private val translit = (n: String) ⇒ Transliterator.getInstance("Any-Latin; NFD").transform(n)
+
   override def storeFile(fileinfo: FileInfo, file: File) = {
 
     val lastDot = fileinfo.fileName.lastIndexOf('.')
@@ -51,8 +54,7 @@ class FilesService(val baseDir: String, val dispersion: Int = 16) extends BlobsS
       fileinfo.fileName.substring(lastDot + 1)
     } else fileinfo.contentType.mediaType.fileExtensions.headOption.getOrElse(DefaultExtension)
 
-    val filename = Normalizer2.getNFKCInstance.normalize(fileinfo.fileName.stripSuffix("." + ext))
-      .replaceAll("\\s+", "-").replaceAll("[^-_a-zA-Z0-9]", "").toLowerCase
+    val filename = (translit andThen normalize)(fileinfo.fileName.stripSuffix("." + ext)).toLowerCase
 
     val id0 = BlobId(hash = md5file(file), filename = filename, extension = ext)
 
@@ -65,8 +67,7 @@ class FilesService(val baseDir: String, val dispersion: Int = 16) extends BlobsS
       filename.substring(lastDot + 1)
     } else DefaultExtension
 
-    val fn = Normalizer2.getNFKCInstance.normalize(filename.stripSuffix("." + ext))
-      .replaceAll("\\s+", "-").replaceAll("[^-_a-zA-Z0-9]", "").toLowerCase
+    val fn = (translit andThen normalize)(filename.stripSuffix("." + ext)).toLowerCase
 
     val id0 = BlobId(hash = md5file(file), filename = fn, extension = ext)
 
