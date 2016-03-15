@@ -48,7 +48,7 @@ lazy val `images` = (project in file(".")).settings(commons: _*).settings(
     "com.sksamuel.scrimage" %% "scrimage-io-extra" % scrimageV,
     "com.sksamuel.scrimage" %% "scrimage-filters" % scrimageV,
     "com.ibm.icu" % "icu4j" % "56.1",
-    "ru.unicorndev" %% "utils-http" % "0.2.861da2f",
+    "ru.unicorndev" %% "utils-http" % "0.2.fd62a8a",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     "com.typesafe.akka" %% "akka-http-testkit" % akkaV % Test,
     "org.scalatest" %% "scalatest" % "2.2.5" % Test,
