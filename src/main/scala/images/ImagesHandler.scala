@@ -48,7 +48,7 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
       }
     } ~ path(Segment / Segment) { (o, i) ⇒
       val imageId = s"$o/$i"
-      (get & optionalHeaderValueByType(classOf[Accept])) {
+      (get & optionalHeaderValueByType[Accept]()) {
         case Some(a) if a.mediaRanges.forall(_.matches(MediaTypes.`application/json`)) ⇒
           conditional(EntityTag(md5Hex("json" + imageId))) {
             onSuccess(imagesService.getImage(imageId)) { image ⇒
