@@ -7,9 +7,9 @@ organization := "ru.unicorndev"
 
 name := "images"
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
-val akkaV = "2.4.2"
+val akkaV = "2.4.3"
 
 val scrimageV = "2.1.5"
 
@@ -23,7 +23,7 @@ val commonScalariform = scalariformSettings :+ (ScalariformKeys.preferences := S
   .setPreference(RewriteArrowSymbols, true))
 
 val commons = Seq(
-  scalaVersion := "2.11.7",
+  scalaVersion := "2.11.8",
   resolvers ++= Seq(
     "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
     Resolver.sonatypeRepo("snapshots"),
@@ -48,7 +48,7 @@ lazy val `images` = (project in file(".")).settings(commons: _*).settings(
     "com.sksamuel.scrimage" %% "scrimage-io-extra" % scrimageV,
     "com.sksamuel.scrimage" %% "scrimage-filters" % scrimageV,
     "com.ibm.icu" % "icu4j" % "56.1",
-    "ru.unicorndev" %% "utils-http" % "0.2.7d892f9",
+    "ru.unicorndev" %% "utils-http" % "0.2.1226a66",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     "com.typesafe.akka" %% "akka-http-testkit" % akkaV % Test,
     "org.scalatest" %% "scalatest" % "2.2.5" % Test,
