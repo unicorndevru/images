@@ -34,7 +34,7 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
   lazy val route = Route.seal(new ImagesHandler(imagesService) {
     val userAware: Directive1[Option[String]] =
       optionalHeaderValueByName("Authorization")
-        .map(_.filter(_.startsWith("Bearer ")).map(_.stripPrefix("Bearer ")))
+        .map(_.filter(_.startsWith("Bearer ")).map(_.stripPrefix("Bearer "))).filter(_.nonEmpty)
 
     def userStringIdRequired: Directive1[String] = userAware.flatMap {
       case Some(id) ⇒ provide(id)
@@ -43,9 +43,18 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
   }.route)
 
   s"Image handler should" should {
-    "upload image and delete it after" in {
+    "reject upload if user id is empty" in {
+      val image = new File(getClass.getResource("/picture.jpg").toURI)
+      val entity = createRequestEntityWithFile(image)
 
-      val tokenHeader = Authorization(OAuth2BearerToken("userSuperPuperUser"))
+      Post("/images").withEntity(entity) ~> route ~> check {
+        status should be(StatusCodes.NotFound)
+      }
+    }
+
+    "upload image and delete it after even if user id smaller then 6 chars" in {
+
+      val tokenHeader = Authorization(OAuth2BearerToken("user"))
       val image = new File(getClass.getResource("/picture.jpg").toURI)
       val entity = createRequestEntityWithFile(image)
 

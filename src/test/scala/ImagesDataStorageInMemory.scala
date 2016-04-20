@@ -1,6 +1,3 @@
-import java.util.UUID
-
-import blobs.BlobId
 import images.ImagesDataStorage
 import images.protocol.Image.Id
 import images.protocol.{ Image, ImageRendered, ImagesFilter }
