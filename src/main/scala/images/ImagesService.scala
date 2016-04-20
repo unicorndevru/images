@@ -4,19 +4,18 @@ import java.io.File
 import java.nio.file.Files
 import java.util.Base64
 
-import akka.http.scaladsl.model.{ MediaType, MediaTypes }
+import akka.http.scaladsl.model.{MediaType, MediaTypes}
 import akka.http.scaladsl.server.directives.FileInfo
-import blobs.{ BlobId, BlobsService }
+import blobs.{BlobId, BlobsService}
 import com.sksamuel.scrimage.filter.SharpenFilter
 import com.sksamuel.scrimage.nio.PngWriter
-import com.sksamuel.scrimage.{ Color, ScaleMethod, Image ⇒ ScrImage }
-import images.protocol.{ Image, ImageRendered, ImagesError, ImagesFilter }
+import com.sksamuel.scrimage.{Color, ScaleMethod, Image => ScrImage}
+import images.protocol.{Image, ImageRendered, ImagesError, ImagesFilter}
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.Try
 
 class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) {
   val PreloadSize = 32
