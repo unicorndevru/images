@@ -10,7 +10,7 @@ import akka.http.scaladsl.server._
 import akka.http.scaladsl.testkit.{ RouteTestTimeout, ScalatestRouteTest }
 import akka.stream.scaladsl.Source
 import blobs.FilesService
-import images.protocol.ImagesError
+import images.protocol.{ ImagesError, ImagesFilter }
 import images.{ ImagesHandler, ImagesService }
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest._
@@ -102,6 +102,55 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
       }
 
       imagesService.getImage(imageId).failed.futureValue shouldBe ImagesError.NotFound
+    }
+
+    "handle multiple files uploading and deleting" in {
+
+      val tokenHeader = Authorization(OAuth2BearerToken("user"))
+      val image = new File(getClass.getResource("/picture.jpg").toURI)
+      val image2 = new File(getClass.getResource("/picture2.png").toURI)
+      val entity = createRequestEntityWithFile(image)
+      val entity2 = createRequestEntityWithFile(image2)
+
+      val imageJson1 = Post("/images").withEntity(entity).withHeaders(tokenHeader) ~> route ~> check {
+        status should be(StatusCodes.Created)
+        responseAs[JsObject]
+      }
+
+      val imageIdOpt1 = (imageJson1 \ "id").asOpt[String]
+      imageIdOpt1 shouldBe defined
+      val imageId1 = (imageJson1 \ "id").as[String]
+
+      val imageJson2 = Post("/images").withEntity(entity2).withHeaders(tokenHeader) ~> route ~> check {
+        status should be(StatusCodes.Created)
+        responseAs[JsObject]
+      }
+
+      val imageIdOpt2 = (imageJson2 \ "id").asOpt[String]
+      imageIdOpt2 shouldBe defined
+      val imageId2 = (imageJson2 \ "id").as[String]
+
+      ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user"))).futureValue shouldEqual 2
+      ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user1"))).futureValue shouldEqual 0
+      ImagesDataStorageInMemory.count(ImagesFilter()).futureValue shouldEqual 2
+
+      Delete(s"/images/$imageId1").withHeaders(tokenHeader) ~> route ~> check {
+        status should be(StatusCodes.NoContent)
+      }
+
+      ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user"))).futureValue shouldEqual 1
+      ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user1"))).futureValue shouldEqual 0
+      ImagesDataStorageInMemory.count(ImagesFilter()).futureValue shouldEqual 1
+
+      Delete(s"/images/$imageId2").withHeaders(tokenHeader) ~> route ~> check {
+        status should be(StatusCodes.NoContent)
+      }
+
+      ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user"))).futureValue shouldEqual 0
+      ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user1"))).futureValue shouldEqual 0
+      ImagesDataStorageInMemory.count(ImagesFilter()).futureValue shouldEqual 0
+
+      imagesService.getImage(imageId1).failed.futureValue shouldBe ImagesError.NotFound
     }
   }
 
