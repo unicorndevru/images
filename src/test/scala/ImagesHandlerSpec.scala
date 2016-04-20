@@ -107,6 +107,7 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
     "handle multiple files uploading and deleting" in {
 
       val tokenHeader = Authorization(OAuth2BearerToken("user"))
+      val tokenHeader2 = Authorization(OAuth2BearerToken("user2"))
       val image = new File(getClass.getResource("/picture.jpg").toURI)
       val image2 = new File(getClass.getResource("/picture2.png").toURI)
       val entity = createRequestEntityWithFile(image)
@@ -130,9 +131,37 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
       imageIdOpt2 shouldBe defined
       val imageId2 = (imageJson2 \ "id").as[String]
 
+      val imageJson3 = Post("/images").withEntity(entity).withHeaders(tokenHeader2) ~> route ~> check {
+        status should be(StatusCodes.Created)
+        responseAs[JsObject]
+      }
+
+      val imageIdOpt3 = (imageJson3 \ "id").asOpt[String]
+      imageIdOpt3 shouldBe defined
+      val imageId3 = (imageJson3 \ "id").as[String]
+
+      val imageJson4 = Post("/images").withEntity(entity2).withHeaders(tokenHeader2) ~> route ~> check {
+        status should be(StatusCodes.Created)
+        responseAs[JsObject]
+      }
+
+      val imageIdOpt4 = (imageJson4 \ "id").asOpt[String]
+      imageIdOpt4 shouldBe defined
+      val imageId4 = (imageJson4 \ "id").as[String]
+
+      //already post this image
+      val imageJson5 = Post("/images").withEntity(entity2).withHeaders(tokenHeader2) ~> route ~> check {
+        status should be(StatusCodes.OK)
+        responseAs[JsObject]
+      }
+
+      val imageIdOpt5 = (imageJson5 \ "id").asOpt[String]
+      imageIdOpt5 shouldBe defined
+      val imageId5 = (imageJson5 \ "id").as[String]
+
       ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user"))).futureValue shouldEqual 2
       ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user1"))).futureValue shouldEqual 0
-      ImagesDataStorageInMemory.count(ImagesFilter()).futureValue shouldEqual 2
+      ImagesDataStorageInMemory.count(ImagesFilter()).futureValue shouldEqual 4
 
       Delete(s"/images/$imageId1").withHeaders(tokenHeader) ~> route ~> check {
         status should be(StatusCodes.NoContent)
@@ -140,7 +169,7 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
 
       ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user"))).futureValue shouldEqual 1
       ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user1"))).futureValue shouldEqual 0
-      ImagesDataStorageInMemory.count(ImagesFilter()).futureValue shouldEqual 1
+      ImagesDataStorageInMemory.count(ImagesFilter()).futureValue shouldEqual 3
 
       Delete(s"/images/$imageId2").withHeaders(tokenHeader) ~> route ~> check {
         status should be(StatusCodes.NoContent)
@@ -148,7 +177,24 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
 
       ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user"))).futureValue shouldEqual 0
       ImagesDataStorageInMemory.count(ImagesFilter(userId = Some("user1"))).futureValue shouldEqual 0
-      ImagesDataStorageInMemory.count(ImagesFilter()).futureValue shouldEqual 0
+      ImagesDataStorageInMemory.count(ImagesFilter()).futureValue shouldEqual 2
+
+      Delete(s"/images/$imageId3").withHeaders(tokenHeader) ~> route ~> check {
+        status should be(StatusCodes.Forbidden)
+      }
+
+      Delete(s"/images/$imageId3").withHeaders(tokenHeader2) ~> route ~> check {
+        status should be(StatusCodes.NoContent)
+      }
+
+      Delete(s"/images/$imageId4").withHeaders(tokenHeader2) ~> route ~> check {
+        status should be(StatusCodes.NoContent)
+      }
+
+      //duplicate of imageId3
+      Delete(s"/images/$imageId5").withHeaders(tokenHeader2) ~> route ~> check {
+        status should be(StatusCodes.NotFound)
+      }
 
       imagesService.getImage(imageId1).failed.futureValue shouldBe ImagesError.NotFound
     }
