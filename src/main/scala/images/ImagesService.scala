@@ -9,8 +9,8 @@ import akka.http.scaladsl.server.directives.FileInfo
 import blobs.{ BlobId, BlobsService }
 import com.sksamuel.scrimage.filter.SharpenFilter
 import com.sksamuel.scrimage.nio.PngWriter
-import com.sksamuel.scrimage.{ Color, Image ⇒ ScrImage, ScaleMethod }
-import images.protocol.{ ImageRendered, Image, ImagesError, ImagesFilter }
+import com.sksamuel.scrimage.{ Color, ScaleMethod, Image ⇒ ScrImage }
+import images.protocol.{ Image, ImageRendered, ImagesError, ImagesFilter }
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
 
@@ -27,12 +27,16 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
 
   def save(userId: String, info: FileInfo, file: File): Future[(Boolean, Image)] = {
     val scri = ScrImage.fromFile(file)
+    val userIdPart = userId match {
+      case id: String if id.length > 5 ⇒ id.substring(0, 6)
+      case _                           ⇒ userId
+    }
     val (w, h) = scri.dimensions
     val scriStream = scri.fit(PreloadSize, PreloadSize, Color.White, ScaleMethod.Bicubic).autocrop(Color.White).stream(PngWriter.MaxCompression)
     val preload = Base64.getEncoder.encodeToString(IOUtils.toByteArray(scriStream))
 
     blobsService.storeFile(info, file).flatMap { bid ⇒
-      val imageId = bid.hash.substring(0, 6) + userId.substring(0, 6) + "/" + bid.filename.take(64)
+      val imageId = bid.hash.substring(0, 6) + userIdPart + "/" + bid.filename.take(64)
       dataStorage.save(Image(
         id = imageId,
         blobId = bid,
