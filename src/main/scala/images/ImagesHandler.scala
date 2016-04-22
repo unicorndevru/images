@@ -50,18 +50,21 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
       val imageId = s"$o/$i"
       (get & optionalHeaderValueByType[Accept]()) {
         case Some(a) if a.mediaRanges.nonEmpty && a.mediaRanges.forall(_.matches(MediaTypes.`application/json`)) ⇒
+          println("return json "+a)
           conditional(EntityTag(md5Hex("json" + imageId))) {
             onSuccess(imagesService.getImage(imageId)) { image ⇒
               complete(image)
             }
           }
         case Some(a) if a.mediaRanges.nonEmpty && a.mediaRanges.forall(_.matches(MediaTypes.`text/html`)) ⇒
+          println("return html " +a)
           conditional(EntityTag(md5Hex("html" + imageId))) {
             onSuccess(imagesService.getImage(imageId)) { image ⇒
               complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<img src=\"data:image/png;base64," + image.preload + "\">"))
             }
           }
-        case _ ⇒
+        case o ⇒
+          println("return image "+o)
           parameterMap { params ⇒
             val ps = params.filterKeys(modifyKeys).toSeq.map(kv ⇒ kv._1 + kv._2).sorted.mkString
             conditional(EntityTag(md5Hex(imageId + ps))) {
