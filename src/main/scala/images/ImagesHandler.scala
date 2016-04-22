@@ -49,13 +49,13 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
     } ~ path(Segment / Segment) { (o, i) ⇒
       val imageId = s"$o/$i"
       (get & optionalHeaderValueByType[Accept]()) {
-        case Some(a) if a.mediaRanges.forall(_.matches(MediaTypes.`application/json`)) ⇒
+        case Some(a) if a.mediaRanges.nonEmpty && a.mediaRanges.forall(_.matches(MediaTypes.`application/json`)) ⇒
           conditional(EntityTag(md5Hex("json" + imageId))) {
             onSuccess(imagesService.getImage(imageId)) { image ⇒
               complete(image)
             }
           }
-        case Some(a) if a.mediaRanges.forall(_.matches(MediaTypes.`text/html`)) ⇒
+        case Some(a) if a.mediaRanges.nonEmpty && a.mediaRanges.forall(_.matches(MediaTypes.`text/html`)) ⇒
           conditional(EntityTag(md5Hex("html" + imageId))) {
             onSuccess(imagesService.getImage(imageId)) { image ⇒
               complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<img src=\"data:image/png;base64," + image.preload + "\">"))
