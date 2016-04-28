@@ -24,12 +24,14 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
   }
 
   def getImageFile(image: Image): Directive[(MediaType.Binary, File)] =
-    (parameters('w.as[Double], 'h.as[Double], 'm ? "cover").tmap {
-      case (w, h, m) ⇒
-        imagesService.getModifiedImageFile(image, w.toInt, h.toInt, m)
+    (parameters('w.as[Double], 'h.as[Double], 'q.as[Int].?, 'm ? "cover").tmap {
+      case (w, h, q, m) ⇒
+        imagesService.getModifiedImageFile(image, w.toInt, h.toInt, q, m)
+    } | parameter('q.as[Int]).map{ q ⇒
+      imagesService.getModifiedImageFile(image, image.width, image.height, Some(q), "cover")
     } | provide(imagesService.getImageFile(image))).flatMap(f ⇒ onSuccess(f))
 
-  val modifyKeys = Set("w", "h", "m")
+  val modifyKeys = Set("w", "h", "m", "q")
 
   val route = (pathPrefix("images") & extractJsonMarshallingContext) { implicit jsonCtx ⇒
     pathEndOrSingleSlash {

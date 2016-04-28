@@ -98,6 +98,10 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
         status should be(StatusCodes.OK)
         contentType should be(ContentType(MediaTypes.`image/png`))
       }
+      Get(s"/images/$imageId?w=12.34&h=23.32&q=12").withHeaders(tokenHeader) ~> route ~> check {
+        status should be(StatusCodes.OK)
+        contentType should be(ContentType(MediaTypes.`image/jpeg`))
+      }
 
       Delete(s"/images/$imageId").withHeaders(tokenHeader) ~> route ~> check {
         status should be(StatusCodes.NoContent)
@@ -136,6 +140,15 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
       val imageIdOpt2 = (imageJson2 \ "id").asOpt[String]
       imageIdOpt2 shouldBe defined
       val imageId2 = (imageJson2 \ "id").as[String]
+
+      Get(s"/images/$imageId2") ~> route ~> check {
+        status should be(StatusCodes.OK)
+        contentType should be(ContentType(MediaTypes.`image/png`))
+      }
+      Get(s"/images/$imageId2?q=12") ~> route ~> check {
+        status should be(StatusCodes.OK)
+        contentType should be(ContentType(MediaTypes.`image/jpeg`))
+      }
 
       val imageJson3 = Post("/images").withEntity(entity).withHeaders(tokenHeader2) ~> route ~> check {
         status should be(StatusCodes.Created)
