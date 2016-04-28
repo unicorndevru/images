@@ -24,9 +24,9 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
   }
 
   def getImageFile(image: Image): Directive[(MediaType.Binary, File)] =
-    (parameters('w.as[Int], 'h.as[Int], 'm ? "cover").tmap {
+    (parameters('w.as[Double], 'h.as[Double], 'm ? "cover").tmap {
       case (w, h, m) ⇒
-        imagesService.getModifiedImageFile(image, w, h, m)
+        imagesService.getModifiedImageFile(image, w.toInt, h.toInt, m)
     } | provide(imagesService.getImageFile(image))).flatMap(f ⇒ onSuccess(f))
 
   val modifyKeys = Set("w", "h", "m")

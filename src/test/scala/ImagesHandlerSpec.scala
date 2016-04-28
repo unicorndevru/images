@@ -94,6 +94,11 @@ class ImagesHandlerSpec extends WordSpec with ScalatestRouteTest with Matchers w
         contentType should be(ContentType(MediaTypes.`image/jpeg`))
       }
 
+      Get(s"/images/$imageId?w=12.34&h=23.32").withHeaders(tokenHeader) ~> route ~> check {
+        status should be(StatusCodes.OK)
+        contentType should be(ContentType(MediaTypes.`image/png`))
+      }
+
       Delete(s"/images/$imageId").withHeaders(tokenHeader) ~> route ~> check {
         status should be(StatusCodes.NoContent)
       }
