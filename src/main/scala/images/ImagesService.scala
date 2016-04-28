@@ -68,39 +68,40 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
       }) → f
     }
 
-  def getModifiedImageFile(im: Image, width: Int, height: Int, quality: Option[Int], mode: String): Future[(MediaType.Binary, File)] =
-    {
-      val q = quality.filter(_ < 100).filter(_ > 0)
-      im.rendered.find(r ⇒ r.width == width && r.height == height && r.mode == mode && r.quality == q) match {
-        case Some(r) ⇒
-          getFile(r.blobId)
-        case None ⇒
-          getImageFile(im).flatMap {
-            case (m, file) ⇒
-              if (im.width <= width && im.height <= height && q.isEmpty) {
-                Future.successful(m, file)
-              } else {
-                val tmp = Files.createTempFile("mod-" + im.blobId.filename, "tmp")
-                val img = ScrImage.fromFile(file)
-                val imgSized = mode match {
-                  case "fit" ⇒
-                    img.fit(width, height, Color.White, ScaleMethod.Bicubic).autocrop(Color.White)
-                  case _ ⇒
-                    img.cover(width, height, ScaleMethod.Bicubic)
-                }
-                val f = imgSized
-                  .filter(SharpenFilter)
-                  .output(tmp)(q.fold[ImageWriter](PngWriter.MaxCompression)(JpegWriter(_, progressive = false))).toFile
-
-                blobsService.storeFile(s"w${width}_h${height}_${mode}_" + im.blobId.filename, f).flatMap { bid ⇒
-                  val r = ImageRendered(width = width, height = height, quality = q, mode = mode, blobId = bid, size = f.length(), at = DateTime.now())
-                  dataStorage.rendered(im.id, r).map(_ ⇒
-                    quality.fold(MediaTypes.`image/png`)(_ ⇒ MediaTypes.`image/jpeg`) → f)
-                }
+  def getModifiedImageFile(im: Image, width: Int, height: Int, quality: Option[Int], mode: String): Future[(MediaType.Binary, File)] = {
+    val q = quality.filter(_ < 100).filter(_ > 0)
+    im.rendered.find(r ⇒ r.width == width && r.height == height && r.mode == mode && r.quality == q) match {
+      case Some(r) ⇒
+        getFile(r.blobId)
+      case None ⇒
+        getImageFile(im).flatMap {
+          case (m, file) ⇒
+            if (im.width <= width && im.height <= height && q.isEmpty) {
+              Future.successful(m, file)
+            } else {
+              val tmp = Files.createTempFile("mod-" + im.blobId.filename, "tmp")
+              val img = ScrImage.fromFile(file)
+              val imgSized = mode match {
+                case "fit" ⇒
+                  img.fit(width, height, Color.White, ScaleMethod.Bicubic).autocrop(Color.White)
+                case _ ⇒
+                  img.cover(width, height, ScaleMethod.Bicubic)
               }
-          }
-      }
+              val f = imgSized
+                .filter(SharpenFilter)
+                .output(tmp)(q.fold[ImageWriter](PngWriter.MaxCompression)(JpegWriter(_, progressive = false))).toFile
+
+              val ext = q.fold("png")(_ ⇒ "jpg")
+
+              blobsService.storeFile(s"w${width}_h${height}_$mode${q.fold("")("_" + _)}_" + im.blobId.filename + "." + ext, f).flatMap { bid ⇒
+                val r = ImageRendered(width = width, height = height, quality = q, mode = mode, blobId = bid, size = f.length(), at = DateTime.now())
+                dataStorage.rendered(im.id, r).map(_ ⇒
+                  quality.fold(MediaTypes.`image/png`)(_ ⇒ MediaTypes.`image/jpeg`) → f)
+              }
+            }
+        }
     }
+  }
 
   def deleteImage(im: Image): Future[Boolean] = {
     dataStorage.delete(im.id) zip dataStorage.count(ImagesFilter(blobId = Some(im.blobId))) flatMap {
