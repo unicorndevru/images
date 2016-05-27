@@ -9,9 +9,9 @@ name := "images"
 
 scalaVersion := "2.11.8"
 
-val akkaV = "2.4.4"
+val akkaV = "2.4.6"
 
-val scrimageV = "2.1.5"
+val scrimageV = "2.1.6"
 
 val gitHeadCommitSha = settingKey[String]("current git commit SHA")
 
@@ -48,7 +48,7 @@ lazy val `images` = (project in file(".")).settings(commons: _*).settings(
     "com.sksamuel.scrimage" %% "scrimage-io-extra" % scrimageV,
     "com.sksamuel.scrimage" %% "scrimage-filters" % scrimageV,
     "com.ibm.icu" % "icu4j" % "56.1",
-    "ru.unicorndev" %% "utils-http" % "0.2.7c9fe85",
+    "ru.unicorndev" %% "utils-http" % "0.2.21deacd",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     "com.typesafe.akka" %% "akka-http-testkit" % akkaV % Test,
     "org.scalatest" %% "scalatest" % "2.2.5" % Test,
