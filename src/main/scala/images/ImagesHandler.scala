@@ -33,7 +33,7 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
 
   val modifyKeys = Set("w", "h", "m", "q")
 
-  val route = (pathPrefix("images") & extractJsonMarshallingContext) { implicit jsonCtx ⇒
+  val route = pathPrefix("images") {
     pathEndOrSingleSlash {
       (post & userStringIdRequired) { userId ⇒
         uploadedFile("data") {
