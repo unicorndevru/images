@@ -1,11 +1,11 @@
 package blobs
 
 import java.io.{ File, FileInputStream }
-import java.nio.file.{ FileSystems, Files, Paths, StandardCopyOption }
+import java.nio.file._
 import java.security.MessageDigest
 
 import akka.http.scaladsl.server.directives.FileInfo
-import com.ibm.icu.text.{ Transliterator, Normalizer2 }
+import com.ibm.icu.text.{ Normalizer2, Transliterator }
 import images.protocol.ImagesError
 
 import scala.concurrent.Future
@@ -75,6 +75,8 @@ class FilesService(val baseDir: String, val dispersion: Int = 16) extends BlobsS
     store(id0, filename, file)
   }
 
+  def onFileStored(id: BlobId, path: Path): Unit = ()
+
   private def store(id0: BlobId, filename: String, file: File): Future[BlobId] = {
     val p0 = Paths.get(location(id0))
 
@@ -95,6 +97,7 @@ class FilesService(val baseDir: String, val dispersion: Int = 16) extends BlobsS
         } else {
           Files.createDirectories(destination.getParent)
           Files.copy(file.toPath, destination, StandardCopyOption.REPLACE_EXISTING)
+          onFileStored(id, destination)
           Future.successful(id)
         }
       }
