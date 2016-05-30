@@ -1,7 +1,6 @@
 package images
 
-import java.io.File
-import java.nio.file.Files
+import java.nio.file.{ Files, Path }
 import java.util.Base64
 
 import akka.http.scaladsl.model.{ MediaType, MediaTypes }
@@ -25,8 +24,8 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
       case _ ⇒ Future.failed(ImagesError.NotFound)
     }
 
-  def save(userId: String, info: FileInfo, file: File): Future[(Boolean, Image)] = {
-    val scri = ScrImage.fromFile(file)
+  def save(userId: String, info: FileInfo, file: Path): Future[(Boolean, Image)] = {
+    val scri = ScrImage.fromPath(file)
     val userIdPart = userId match {
       case id: String if id.length > 5 ⇒ id.substring(0, 6)
       case _                           ⇒ userId
@@ -45,7 +44,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
         height = h,
         preload = preload,
         rendered = Set.empty,
-        size = file.length(),
+        size = Files.size(file),
         mediaType = info.contentType.mediaType.toString(),
         dateCreated = DateTime.now()
       )).map(true → _).recoverWith {
@@ -55,10 +54,10 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
     }
   }
 
-  def getImageFile(im: Image): Future[(MediaType.Binary, File)] =
+  def getImageFile(im: Image): Future[(MediaType.Binary, Path)] =
     getFile(im.blobId)
 
-  private def getFile(blobId: BlobId): Future[(MediaType.Binary, File)] =
+  private def getFile(blobId: BlobId): Future[(MediaType.Binary, Path)] =
     blobsService.retrieveFile(blobId).map { f ⇒
       (MediaTypes.forExtension(blobId.extension) match {
         case mt: MediaType.Binary ⇒
@@ -68,7 +67,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
       }) → f
     }
 
-  def getModifiedImageFile(im: Image, width: Int, height: Int, quality: Option[Int], mode: String): Future[(MediaType.Binary, File)] = {
+  def getModifiedImageFile(im: Image, width: Int, height: Int, quality: Option[Int], mode: String): Future[(MediaType.Binary, Path)] = {
     val q = quality.filter(_ < 100).filter(_ > 0)
     im.rendered.find(r ⇒ r.width == width && r.height == height && r.mode == mode && r.quality == q) match {
       case Some(r) ⇒
@@ -80,7 +79,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
               Future.successful(m, file)
             } else {
               val tmp = Files.createTempFile("mod-" + im.blobId.filename, "tmp")
-              val img = ScrImage.fromFile(file)
+              val img = ScrImage.fromPath(file)
               val imgSized = mode match {
                 case "fit" ⇒
                   img.fit(width, height, Color.White, ScaleMethod.Bicubic).autocrop(Color.White)
@@ -89,12 +88,12 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
               }
               val f = imgSized
                 .filter(SharpenFilter)
-                .output(tmp)(q.fold[ImageWriter](PngWriter.MaxCompression)(JpegWriter(_, progressive = false))).toFile
+                .output(tmp)(q.fold[ImageWriter](PngWriter.MaxCompression)(JpegWriter(_, progressive = false)))
 
               val ext = q.fold("png")(_ ⇒ "jpg")
 
               blobsService.storeFile(s"w${width}_h${height}_$mode${q.fold("")("_" + _)}_" + im.blobId.filename + "." + ext, f).flatMap { bid ⇒
-                val r = ImageRendered(width = width, height = height, quality = q, mode = mode, blobId = bid, size = f.length(), at = DateTime.now())
+                val r = ImageRendered(width = width, height = height, quality = q, mode = mode, blobId = bid, size = Files.size(f), at = DateTime.now())
                 dataStorage.rendered(im.id, r).map(_ ⇒
                   quality.fold(MediaTypes.`image/png`)(_ ⇒ MediaTypes.`image/jpeg`) → f)
               }

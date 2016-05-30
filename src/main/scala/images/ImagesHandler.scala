@@ -1,13 +1,13 @@
 package images
 
-import java.io.File
+import java.nio.file.{ Files, Path }
 
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{ EntityTag, Accept }
-import akka.http.scaladsl.server.{ Directive, Directive1 }
+import akka.http.scaladsl.model.headers.{ Accept, EntityTag }
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.{ Directive, Directive1 }
 import akka.stream.scaladsl.FileIO
-import images.protocol.{ ImagesError, ImagesJsonFormats, Image }
+import images.protocol.{ Image, ImagesError, ImagesJsonFormats }
 import utils.http.json.PlayJsonSupport
 
 import scala.concurrent.ExecutionContext
@@ -23,11 +23,11 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
     md.digest(str.getBytes).map("%02x" format _).mkString
   }
 
-  def getImageFile(image: Image): Directive[(MediaType.Binary, File)] =
+  def getImageFile(image: Image, checkOnly: Boolean = false): Directive[(MediaType.Binary, Path)] =
     (parameters('w.as[Double], 'h.as[Double], 'q.as[Int].?, 'm ? "cover").tmap {
       case (w, h, q, m) ⇒
         imagesService.getModifiedImageFile(image, w.toInt, h.toInt, q, m)
-    } | parameter('q.as[Int]).map{ q ⇒
+    } | parameter('q.as[Int]).map { q ⇒
       imagesService.getModifiedImageFile(image, image.width, image.height, Some(q), "cover")
     } | provide(imagesService.getImageFile(image))).flatMap(f ⇒ onSuccess(f))
 
@@ -39,7 +39,7 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
         uploadedFile("data") {
           case (fileinfo, file) ⇒
             if (fileinfo.contentType.mediaType.isImage) {
-              onSuccess(imagesService.save(userId, fileinfo, file)) {
+              onSuccess(imagesService.save(userId, fileinfo, file.toPath)) {
                 case (created, image) ⇒
                   complete((if (created) StatusCodes.Created else StatusCodes.OK) → image)
               }
@@ -63,16 +63,16 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
               complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<img src=\"data:image/png;base64," + image.preload + "\">"))
             }
           }
-        case o ⇒
+        case _ ⇒
           parameterMap { params ⇒
             val ps = params.filterKeys(modifyKeys).toSeq.map(kv ⇒ kv._1 + kv._2).sorted.mkString
             conditional(EntityTag(md5Hex(imageId + ps))) {
               onSuccess(imagesService.getImage(imageId)) { image ⇒
-                getImageFile(image){ (m, file) ⇒
+                getImageFile(image) { (m, file) ⇒
                   complete(HttpEntity(
                     m,
-                    file.length,
-                    FileIO.fromFile(file, chunkSize = 262144)
+                    Files.size(file),
+                    FileIO.fromPath(file, chunkSize = 262144)
                   ))
                 }
               }
