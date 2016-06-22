@@ -9,7 +9,7 @@ name := "images"
 
 scalaVersion := "2.11.8"
 
-val akkaV = "2.4.6"
+val akkaV = "2.4.7"
 
 val scrimageV = "2.1.6"
 

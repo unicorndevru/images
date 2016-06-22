@@ -89,6 +89,8 @@ abstract class ImagesHandler(imagesService: ImagesService)(implicit ctx: Executi
             failWith(ImagesError.Forbidden)
           }
         }
+      } ~ head {
+        complete(imagesService.checkImageExists(imageId).map(_ ⇒ NoContent))
       }
     }
   }

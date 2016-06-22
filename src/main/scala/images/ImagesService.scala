@@ -3,8 +3,12 @@ package images
 import java.nio.file.{ Files, Path }
 import java.util.Base64
 
-import akka.http.scaladsl.model.{ MediaType, MediaTypes }
+import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.directives.FileInfo
+import akka.stream.{ IOResult, Materializer }
+import akka.stream.scaladsl.{ FileIO, Sink, Source }
 import blobs.{ BlobId, BlobsService }
 import com.sksamuel.scrimage.filter.SharpenFilter
 import com.sksamuel.scrimage.nio.{ ImageWriter, JpegWriter, PngWriter }
@@ -15,8 +19,9 @@ import org.joda.time.DateTime
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.Try
 
-class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) {
+class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService, otherHosts: Set[String] = Set.empty) {
   val PreloadSize = 32
 
   def getImage(imageId: Image.Id): Future[Image] =
@@ -34,7 +39,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
     val scriStream = scri.fit(PreloadSize, PreloadSize, Color.White, ScaleMethod.Bicubic).autocrop(Color.White).stream(PngWriter.MaxCompression)
     val preload = Base64.getEncoder.encodeToString(IOUtils.toByteArray(scriStream))
 
-    blobsService.storeFile(info, file).flatMap { bid ⇒
+    blobsService.storeFile(info, file, "original").flatMap { bid ⇒
       val imageId = bid.hash.substring(0, 6) + userIdPart + "/" + bid.filename.take(64)
       dataStorage.save(Image(
         id = imageId,
@@ -57,7 +62,15 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
   def getImageFile(im: Image): Future[(MediaType.Binary, Path)] =
     getFile(im.blobId)
 
-  private def getFile(blobId: BlobId): Future[(MediaType.Binary, Path)] =
+  def checkImageExists(imageId: Image.Id): Future[Unit] =
+    dataStorage.get(imageId).flatMap {
+      im ⇒
+        getFile(im.blobId).map(_ ⇒ ())
+    }.recoverWith {
+      case _ ⇒ Future.failed(ImagesError.NotFound)
+    }
+
+  protected def getFile(blobId: BlobId): Future[(MediaType.Binary, Path)] =
     blobsService.retrieveFile(blobId).map { f ⇒
       (MediaTypes.forExtension(blobId.extension) match {
         case mt: MediaType.Binary ⇒
@@ -69,9 +82,16 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
 
   def getModifiedImageFile(im: Image, width: Int, height: Int, quality: Option[Int], mode: String): Future[(MediaType.Binary, Path)] = {
     val q = quality.filter(_ < 100).filter(_ > 0)
-    im.rendered.find(r ⇒ r.width == width && r.height == height && r.mode == mode && r.quality == q) match {
+    (im.rendered.find(r ⇒ r.width == width && r.height == height && r.mode == mode && r.quality == q) match {
       case Some(r) ⇒
-        getFile(r.blobId)
+        getFile(r.blobId).map(v ⇒ Option(v)).recoverWith {
+          case _ ⇒
+            Future.successful(None)
+        }
+      case None ⇒
+        Future.successful(None)
+    }).flatMap {
+      case Some(v) ⇒ Future.successful(v)
       case None ⇒
         getImageFile(im).flatMap {
           case (m, file) ⇒
@@ -92,7 +112,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
 
               val ext = q.fold("png")(_ ⇒ "jpg")
 
-              blobsService.storeFile(s"w${width}_h${height}_$mode${q.fold("")("_" + _)}_" + im.blobId.filename + "." + ext, f).flatMap { bid ⇒
+              blobsService.storeFile(s"w${width}_h${height}_$mode${q.fold("")("_" + _)}_" + im.blobId.filename + "." + ext, f, "modified").flatMap { bid ⇒
                 val r = ImageRendered(width = width, height = height, quality = q, mode = mode, blobId = bid, size = Files.size(f), at = DateTime.now())
                 dataStorage.rendered(im.id, r).map(_ ⇒
                   quality.fold(MediaTypes.`image/png`)(_ ⇒ MediaTypes.`image/jpeg`) → f)
@@ -109,5 +129,45 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService) 
           Future.successful(b)
         } else Future.traverse(im.rendered.map(_.blobId) + im.blobId)(blobsService.delete).map(_.forall(identity))
     }
+  }
+}
+
+object ImagesService {
+  class Distributed(dataStorage: ImagesDataStorage, blobsService: BlobsService, otherSources: Set[String])(implicit system: ActorSystem, mat: Materializer) extends ImagesService(dataStorage, blobsService) {
+    private val httpDownloadFlow = Http().superPool[Unit]()
+
+    private def responseOrFail[T](in: (Try[HttpResponse], T)): (HttpResponse, T) = in match {
+      case (responseTry, context) ⇒ (responseTry.get, context)
+    }
+
+    override def getImageFile(im: Image): Future[(MediaType.Binary, Path)] =
+      getFile(im.blobId).recoverWith {
+        case ImagesError.FileNotFound ⇒
+          // find a host where image exists, or fail
+          Future.traverse(otherSources.map(h ⇒ Uri(h + im.id)).map(uri ⇒ HttpRequest(uri = uri, method = HttpMethods.HEAD)))(req ⇒
+            Http().singleRequest(req).map(resp ⇒ req.uri → resp.status.isSuccess())).map(_.find(_._2).map(_._1)).flatMap {
+            case Some(uri) ⇒
+              // for the first host with image, make request
+              val file = Files.createTempFile("orig-" + im.blobId.filename, "tmp")
+              def writeFile(httpResponse: HttpResponse): Future[IOResult] = {
+                httpResponse.entity.dataBytes.runWith(FileIO.toPath(file))
+              }
+              val request = HttpRequest(uri = uri)
+              val source = Source.single((request, ()))
+              source.via(httpDownloadFlow)
+                .map(responseOrFail)
+                .map(_._1)
+                .mapAsync(2)(writeFile)
+                .runWith(Sink.ignore).flatMap {
+                  _ ⇒
+                    // save file with current blob id
+                    blobsService.storeFile(im.blobId, im.blobId.filename, file).flatMap{ _ ⇒
+                      getFile(im.blobId)
+                    }
+                }
+            case None ⇒
+              Future.failed(ImagesError.FileNotFound)
+          }
+      }
   }
 }
