@@ -89,7 +89,7 @@ class FilesService(val baseDir: String, val dispersion: Int = 16) extends BlobsS
       Future.successful(id0)
     } else {
       def store(i: Int): Future[BlobId] = {
-        val id = id0.copy(filename = s"${i}_$filename")
+        val id = if (i > 0) id0.copy(filename = s"${i}_$filename") else id0
 
         val destination = Paths.get(location(id))
 
