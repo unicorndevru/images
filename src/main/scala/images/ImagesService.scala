@@ -1,6 +1,7 @@
 package images
 
 import java.nio.file.{ Files, Path }
+import java.time.Instant
 import java.util.Base64
 
 import akka.actor.ActorSystem
@@ -15,7 +16,6 @@ import com.sksamuel.scrimage.nio.{ ImageWriter, JpegWriter, PngWriter }
 import com.sksamuel.scrimage.{ Color, ScaleMethod, Image ⇒ ScrImage }
 import images.protocol.{ Image, ImageRendered, ImagesError, ImagesFilter }
 import org.apache.commons.io.IOUtils
-import org.joda.time.DateTime
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -51,7 +51,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService, 
         rendered = Set.empty,
         size = Files.size(file),
         mediaType = info.contentType.mediaType.toString(),
-        dateCreated = DateTime.now()
+        dateCreated = Instant.now()
       )).map(true → _).recoverWith {
         case e ⇒
           getImage(imageId).map(false → _)
@@ -113,7 +113,7 @@ class ImagesService(dataStorage: ImagesDataStorage, blobsService: BlobsService, 
               val ext = q.fold("png")(_ ⇒ "jpg")
 
               blobsService.storeFile(s"w${width}_h${height}_$mode${q.fold("")("_" + _)}_" + im.blobId.filename + "." + ext, f, "modified").flatMap { bid ⇒
-                val r = ImageRendered(width = width, height = height, quality = q, mode = mode, blobId = bid, size = Files.size(f), at = DateTime.now())
+                val r = ImageRendered(width = width, height = height, quality = q, mode = mode, blobId = bid, size = Files.size(f), at = Instant.now())
                 dataStorage.rendered(im.id, r).map(_ ⇒
                   quality.fold(MediaTypes.`image/png`)(_ ⇒ MediaTypes.`image/jpeg`) → f)
               }

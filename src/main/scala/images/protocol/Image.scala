@@ -1,7 +1,8 @@
 package images.protocol
 
+import java.time.Instant
+
 import blobs.BlobId
-import org.joda.time.DateTime
 
 case class Image(
   id:          Image.Id,
@@ -13,7 +14,7 @@ case class Image(
   preload:     String,
   rendered:    Set[ImageRendered],
   size:        Long,
-  dateCreated: DateTime
+  dateCreated: Instant
 )
 
 object Image {
